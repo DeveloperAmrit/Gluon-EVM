@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AEL
 pragma solidity ^0.8.20;
 
-import "./StableCoin.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import {StableCoinReactor} from "./StableCoin.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract StableCoinFactory is Ownable {
     event ReactorDeployed(
@@ -10,13 +10,15 @@ contract StableCoinFactory is Ownable {
         address indexed base,
         address indexed treasury,
         string vaultName,
-        string neutronName,
-        string neutronSymbol,
+        string baseAssetName,
+        string baseAssetSymbol,
+        string peggedAssetName,
+        string peggedAssetSymbol,
         string protonName,
         string protonSymbol,
         uint256 fissionFee,
         uint256 fusionFee,
-        uint256 targetReserveRatioWAD
+        uint256 criticalReserveRatioWad
     );
 
     event ReactorDeployedWithOracle(
@@ -32,77 +34,92 @@ contract StableCoinFactory is Ownable {
 
     /**
      * Deploy a new Reactor
-     * @param _vaultName   name label
-     * @param _base        ERC20 reserve
-     * @param _basePriceId Pyth feed for BASE/USD
-     * @param _neutronName name of neutron token
-     * @param _neutronSymbol symbol of neutron token
-     * @param _protonName  name of proton token
-     * @param _protonSymbol symbol of proton token
-     * @param _treasury    fees / governance
-     * @param _fissionFee  WAD
-     * @param _fusionFee   WAD
-     * @param _targetReserveRatioWAD e.g., 4e18 for 400%
+     * @param vaultNameParam   vault label
+     * @param baseAssetNameParam display name for the base asset
+     * @param baseAssetSymbolParam symbol for the base asset
+     * @param peggedAssetNameParam name for the pegged (neutron) token
+     * @param peggedAssetSymbolParam symbol for the pegged token
+     * @param baseTokenParam   ERC20 reserve
+     * @param pythOracleParam  Pyth contract
+     * @param priceIdParam     Pyth feed for BASE/USD (or Peg)
+     * @param protonNameParam  name of the proton token
+     * @param protonSymbolParam symbol of the proton token
+     * @param treasuryParam    fees / governance
+     * @param fissionFeeParam  WAD
+     * @param fusionFeeParam   WAD
+     * @param criticalReserveRatioWadParam minimum reserve ratio (>=1e18)
      */
     function deployReactor(
-        string memory _vaultName,
-        address _base,
-        address _pyth,
-        bytes32 _basePriceId,
-        string memory _neutronName,
-        string memory _neutronSymbol,
-        string memory _protonName,
-        string memory _protonSymbol,
-        address _treasury,
-        uint256 _fissionFee,
-        uint256 _fusionFee,
-        uint256 _targetReserveRatioWAD
+        string memory vaultNameParam,
+        string memory baseAssetNameParam,
+        string memory baseAssetSymbolParam,
+        string memory peggedAssetNameParam,
+        string memory peggedAssetSymbolParam,
+        address baseTokenParam,
+        address pythOracleParam,
+        bytes32 priceIdParam,
+        string memory protonNameParam,
+        string memory protonSymbolParam,
+        address treasuryParam,
+        uint256 fissionFeeParam,
+        uint256 fusionFeeParam,
+        uint256 criticalReserveRatioWadParam
     ) public returns (address) {
-        require(bytes(_vaultName).length > 0, "Empty vault name");
-        require(_base != address(0), "Invalid base");
-        require(_pyth != address(0), "Invalid Pyth");
-        require(_treasury != address(0), "Invalid treasury");
-        require(_fissionFee < 1e18, "fissionFee >= 100%");
-        require(_fusionFee  < 1e18, "fusionFee  >= 100%");
-        require(_targetReserveRatioWAD >= 1e18, "reserve ratio < 100%");
+        require(bytes(vaultNameParam).length > 0, "Empty vault name");
+        require(bytes(baseAssetNameParam).length > 0, "Empty base name");
+        require(bytes(baseAssetSymbolParam).length > 0, "Empty base symbol");
+        require(bytes(peggedAssetNameParam).length > 0, "Empty peg name");
+        require(bytes(peggedAssetSymbolParam).length > 0, "Empty peg symbol");
+        require(bytes(protonNameParam).length > 0, "Empty proton name");
+        require(bytes(protonSymbolParam).length > 0, "Empty proton symbol");
+        require(baseTokenParam != address(0), "Invalid base");
+        require(pythOracleParam != address(0), "Invalid Pyth");
+        require(treasuryParam != address(0), "Invalid treasury");
+        require(fissionFeeParam < 1e18, "fissionFee >= 100%");
+        require(fusionFeeParam < 1e18, "fusionFee >= 100%");
+        require(criticalReserveRatioWadParam >= 1e18, "critical ratio < 100%");
 
         StableCoinReactor reactor = new StableCoinReactor(
-            _vaultName,
-            _base,
-            _pyth,
-            _basePriceId,
-            _neutronName,
-            _neutronSymbol,
-            _protonName,
-            _protonSymbol,
-            _treasury,
-            _fissionFee,
-            _fusionFee,
-            _targetReserveRatioWAD
+            vaultNameParam,
+            baseAssetNameParam,
+            baseAssetSymbolParam,
+            peggedAssetNameParam,
+            peggedAssetSymbolParam,
+            baseTokenParam,
+            pythOracleParam,
+            priceIdParam,
+            protonNameParam,
+            protonSymbolParam,
+            treasuryParam,
+            fissionFeeParam,
+            fusionFeeParam,
+            criticalReserveRatioWadParam
         );
 
         address reactorAddress = address(reactor);
         deployedReactors.push(reactorAddress);
-        reactorsByBase[_base].push(reactorAddress);
+        reactorsByBase[baseTokenParam].push(reactorAddress);
 
         emit ReactorDeployed(
             reactorAddress,
-            _base,
-            _treasury,
-            _vaultName,
-            _neutronName,
-            _neutronSymbol,
-            _protonName,
-            _protonSymbol,
-            _fissionFee,
-            _fusionFee,
-            _targetReserveRatioWAD
+            baseTokenParam,
+            treasuryParam,
+            vaultNameParam,
+            baseAssetNameParam,
+            baseAssetSymbolParam,
+            peggedAssetNameParam,
+            peggedAssetSymbolParam,
+            protonNameParam,
+            protonSymbolParam,
+            fissionFeeParam,
+            fusionFeeParam,
+            criticalReserveRatioWadParam
         );
 
         emit ReactorDeployedWithOracle(
             reactorAddress,
-            _base,
-            _basePriceId
+            baseTokenParam,
+            priceIdParam
         );
 
         return reactorAddress;
