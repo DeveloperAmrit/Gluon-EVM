@@ -37,21 +37,29 @@ contract GluonPaymentRouter {
      */
     function payWithFission(address merchant, bytes[] calldata updateData) external payable {
         require(merchant != address(0), "payWithFission: merchant is zero address");
-        // 1. Perform Fission, minting both tokens to this contract
+        
+        // 1. Record pre-fission balances to isolate newly minted tokens
+        uint256 preNeutronBal = neutron.balanceOf(address(this));
+        uint256 preProtonBal = proton.balanceOf(address(this));
+        
+        // 2. Perform Fission, minting both tokens to this contract
         gluon.fission{value: msg.value}(msg.value, address(this), updateData);
 
-        // 2. Determine amounts minted
-        uint256 nBal = neutron.balanceOf(address(this));
-        uint256 pBal = proton.balanceOf(address(this));
+        // 3. Calculate only the newly minted amounts
+        uint256 mintedNeutrons = neutron.balanceOf(address(this)) - preNeutronBal;
+        uint256 mintedProtons = proton.balanceOf(address(this)) - preProtonBal;
+        
+        // 4. Verify fission produced tokens
+        require(mintedNeutrons > 0 || mintedProtons > 0, "payWithFission: no tokens minted");
 
-        // 3. Forward Neutrons to Merchant
-        if (nBal > 0) {
-            neutron.transfer(merchant, nBal);
+        // 5. Forward Neutrons to Merchant
+        if (mintedNeutrons > 0) {
+            neutron.transfer(merchant, mintedNeutrons);
         }
 
-        // 4. Return Protons to Payer (User)
-        if (pBal > 0) {
-            proton.transfer(msg.sender, pBal);
+        // 6. Return Protons to Payer (User)
+        if (mintedProtons > 0) {
+            proton.transfer(msg.sender, mintedProtons);
         }
     }
     
