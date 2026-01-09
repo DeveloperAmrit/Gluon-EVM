@@ -24,6 +24,7 @@ contract GluonPaymentRouter {
     IERC20 public proton;
 
     constructor(address _gluon) {
+        require(_gluon != address(0), "Gluon: zero address");
         gluon = IGluon(_gluon);
         neutron = IERC20(gluon.NEUTRON_TOKEN());
         proton = IERC20(gluon.PROTON_TOKEN());
@@ -35,6 +36,7 @@ contract GluonPaymentRouter {
      * @param updateData Pyth oracle update data (if needed).
      */
     function payWithFission(address merchant, bytes[] calldata updateData) external payable {
+        require(merchant != address(0), "payWithFission: merchant is zero address");
         // 1. Perform Fission, minting both tokens to this contract
         gluon.fission{value: msg.value}(msg.value, address(this), updateData);
 
